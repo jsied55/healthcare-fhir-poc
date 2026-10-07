@@ -53,3 +53,10 @@ moved {
   from = aws_ssm_parameter.environment
   to   = aws_ssm_parameter.env
 }
+
+module "vpc" {
+  source = "../../modules/vpc"
+
+  name = local.name_prefix
+  azs  = ["us-east-1a", "us-east-1b"]
+}
