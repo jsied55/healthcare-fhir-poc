@@ -60,3 +60,9 @@ module "vpc" {
   name = local.name_prefix
   azs  = ["us-east-1a", "us-east-1b"]
 }
+
+module "iam" {
+  source = "../../modules/iam"
+
+  name = local.name_prefix
+}
