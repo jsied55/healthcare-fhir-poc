@@ -55,7 +55,7 @@ moved {
 }
 
 module "vpc" {
-  source = "../../modules/vpc"
+source = "git::https://github.com/jsied55/terraform-modules.git//vpc?ref=v1.0.0"
 
   name = local.name_prefix
   azs  = ["us-east-1a", "us-east-1b"]
@@ -63,7 +63,7 @@ module "vpc" {
 }
 
 module "iam" {
-  source = "../../modules/iam"
+source = "git::https://github.com/jsied55/terraform-modules.git//iam?ref=v1.0.0"
 
   name = local.name_prefix
 }
