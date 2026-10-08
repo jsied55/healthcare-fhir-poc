@@ -7,7 +7,7 @@ terraform {
       version = "~> 6.23"
     }
   }
-    backend "s3" {
+  backend "s3" {
     bucket       = "jsied55-fhir-poc-tfstate"
     key          = "bootstrap/terraform.tfstate"
     region       = "us-east-1"

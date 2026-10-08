@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+        working-directory: app
+      - name: Run tests
+        run: pytest
+        working-directory: app
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+      - name: Check formatting
+        run: terraform fmt -check -recursive infra
+      - name: Validate dev
+        working-directory: infra/envs/dev
+        run: |
+          terraform init -backend=false
+          terraform validate
