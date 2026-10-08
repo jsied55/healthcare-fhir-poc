@@ -21,7 +21,7 @@ data "aws_iam_policy_document" "github_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:jsied55/healthcare-fhir-poc:ref:refs/heads/main"]
+      values   = ["repo:jsied55@338652645/healthcare-fhir-poc@1407971041:ref:refs/heads/main"]
     }
   }
 }
