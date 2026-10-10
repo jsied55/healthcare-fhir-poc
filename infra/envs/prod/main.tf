@@ -17,11 +17,21 @@ terraform {
   }
 }
 
+variable "assume_role_arn" {
+  description = "Role to assume in the prod account. Set to empty in CI, where the job already runs inside prod."
+  type        = string
+  default     = "arn:aws:iam::058015011573:role/OrganizationAccountAccessRole"
+}
+
 provider "aws" {
   region = "us-east-1"
 
-  assume_role {
-    role_arn = "arn:aws:iam::058015011573:role/OrganizationAccountAccessRole"
+  dynamic "assume_role" {
+    for_each = var.assume_role_arn == "" ? [] : [var.assume_role_arn]
+
+    content {
+      role_arn = assume_role.value
+    }
   }
 
   default_tags {

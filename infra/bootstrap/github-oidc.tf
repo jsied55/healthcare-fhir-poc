@@ -121,3 +121,13 @@ resource "github_repository_environment" "dev" {
     users = [data.github_user.me.id]
   }
 }
+
+resource "github_repository_environment" "prod" {
+  repository        = "healthcare-fhir-poc"
+  environment       = "prod"
+  can_admins_bypass = false
+
+  reviewers {
+    users = [data.github_user.me.id]
+  }
+}
