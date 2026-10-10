@@ -1,0 +1,54 @@
+name: deploy-dev
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::886126521431:role/github-actions-dev-deploy
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: infra/envs/dev
+        run: terraform init -input=false
+
+      - name: Create ECR repo first
+        working-directory: infra/envs/dev
+        run: terraform apply -input=false -auto-approve -target=aws_ecr_repository.api -var image_tag=${{ github.sha }}
+
+      - name: Build and push image
+        working-directory: infra/envs/dev
+        run: |
+          REPO_URL=$(terraform state pull | jq -r '.resources[] | select(.type=="aws_ecr_repository" and .name=="api") | .instances[0].attributes.repository_url')
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${REPO_URL%%/*}"
+          docker build -t "$REPO_URL:${{ github.sha }}" ../../../app
+          docker push "$REPO_URL:${{ github.sha }}"
+
+      - name: Terraform apply
+        working-directory: infra/envs/dev
+        run: terraform apply -input=false -auto-approve -var image_tag=${{ github.sha }}
+
+      - name: Smoke test
+        working-directory: infra/envs/dev
+        run: |
+          URL="http://$(terraform output -raw alb_dns_name)/health"
+          curl --fail --silent --show-error --retry 20 --retry-delay 10 --retry-all-errors "$URL"
