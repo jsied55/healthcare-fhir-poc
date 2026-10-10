@@ -10,7 +10,7 @@ terraform {
 
   backend "s3" {
     bucket       = "jsied55-fhir-poc-tfstate"
-    key          = "dev/terraform.tfstate"
+    key          = "prod/terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true
     use_lockfile = true
@@ -19,6 +19,10 @@ terraform {
 
 provider "aws" {
   region = "us-east-1"
+
+  assume_role {
+    role_arn = "arn:aws:iam::058015011573:role/OrganizationAccountAccessRole"
+  }
 
   default_tags {
     tags = {
@@ -32,7 +36,7 @@ provider "aws" {
 variable "environment" {
   description = "Name of this environment"
   type        = string
-  default     = "dev"
+  default     = "prod"
 }
 
 locals {
@@ -49,15 +53,11 @@ output "name_prefix" {
   value = local.name_prefix
 }
 
-moved {
-  from = aws_ssm_parameter.environment
-  to   = aws_ssm_parameter.env
-}
-
 module "vpc" {
   source = "git::https://github.com/jsied55/terraform-modules.git//vpc?ref=v1.1.0"
 
   name               = local.name_prefix
+  cidr_block         = "10.1.0.0/16"
   azs                = ["us-east-1a", "us-east-1b"]
   enable_nat_gateway = true
 }
@@ -66,37 +66,6 @@ module "iam" {
   source = "git::https://github.com/jsied55/terraform-modules.git//iam?ref=v1.0.0"
 
   name = local.name_prefix
-}
-
-resource "aws_ecr_repository" "api" {
-  name                 = "${local.name_prefix}-api"
-  image_tag_mutability = "IMMUTABLE"
-  force_delete         = true
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-}
-
-resource "aws_ecr_lifecycle_policy" "api" {
-  repository = aws_ecr_repository.api.name
-
-  policy = jsonencode({
-    rules = [{
-      rulePriority = 1
-      description  = "Keep the last 10 images"
-      selection = {
-        tagStatus   = "any"
-        countType   = "imageCountMoreThan"
-        countNumber = 10
-      }
-      action = { type = "expire" }
-    }]
-  })
-}
-
-output "ecr_repository_url" {
-  value = aws_ecr_repository.api.repository_url
 }
 
 resource "aws_lb" "api" {
@@ -134,8 +103,14 @@ output "alb_dns_name" {
   value = aws_lb.api.dns_name
 }
 
+variable "image_repository" {
+  description = "Registry path of the image promoted from dev"
+  type        = string
+  default     = "886126521431.dkr.ecr.us-east-1.amazonaws.com/fhir-poc-dev-api"
+}
+
 variable "image_tag" {
-  description = "Tag of the API image in ECR"
+  description = "Tag of the API image to run"
   type        = string
   default     = "0.1.0"
 }
@@ -160,7 +135,7 @@ resource "aws_ecs_task_definition" "api" {
 
   container_definitions = jsonencode([{
     name      = "api"
-    image     = "${aws_ecr_repository.api.repository_url}:${var.image_tag}"
+    image     = "${var.image_repository}:${var.image_tag}"
     essential = true
 
     portMappings = [{ containerPort = 8000, protocol = "tcp" }]
@@ -209,24 +184,4 @@ resource "aws_ecs_service" "api" {
 
 output "vpc_cidr_block" {
   value = module.vpc.vpc_cidr_block
-}
-
-resource "aws_ecr_repository_policy" "allow_prod_pull" {
-  repository = aws_ecr_repository.api.name
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Sid    = "AllowProdAccountPull"
-      Effect = "Allow"
-      Principal = {
-        AWS = "arn:aws:iam::058015011573:root"
-      }
-      Action = [
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:BatchGetImage",
-        "ecr:GetDownloadUrlForLayer",
-      ]
-    }]
-  })
 }
