@@ -1,0 +1,36 @@
+name: destroy-dev
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::886126521431:role/github-actions-dev-deploy
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: infra/envs/dev
+        run: terraform init -input=false
+
+      - name: Terraform destroy
+        working-directory: infra/envs/dev
+        run: terraform destroy -input=false -auto-approve -var image_tag=destroy
