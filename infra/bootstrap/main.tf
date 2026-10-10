@@ -68,3 +68,34 @@ resource "aws_s3_bucket_public_access_block" "state" {
 provider "github" {
   owner = "jsied55"
 }
+
+data "aws_iam_policy_document" "state_bucket" {
+  statement {
+    sid       = "ProdDeployListBucket"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::jsied55-fhir-poc-tfstate"]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::058015011573:role/github-actions-prod-deploy"]
+    }
+  }
+
+  statement {
+    sid       = "ProdDeployProdStateOnly"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::jsied55-fhir-poc-tfstate/prod/*"]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::058015011573:role/github-actions-prod-deploy"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "state" {
+  bucket = "jsied55-fhir-poc-tfstate"
+  policy = data.aws_iam_policy_document.state_bucket.json
+}

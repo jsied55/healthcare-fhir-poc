@@ -1,0 +1,35 @@
+name: destroy-prod
+
+on: workflow_dispatch
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::058015011573:role/github-actions-prod-deploy
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: infra/envs/prod
+        run: terraform init -input=false
+
+      - name: Terraform destroy
+        working-directory: infra/envs/prod
+        run: terraform destroy -input=false -auto-approve -var "assume_role_arn=" -var "image_tag=destroy"

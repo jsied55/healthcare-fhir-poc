@@ -63,3 +63,53 @@ jobs:
         run: |
           URL="http://$(terraform output -raw alb_dns_name)/health"
           curl --fail --silent --show-error --retry 30 --retry-delay 10 --retry-all-errors "$URL"
+
+  promote-prod:
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment: prod
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::058015011573:role/github-actions-prod-deploy
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: infra/envs/prod
+        run: terraform init -input=false
+
+      - name: Terraform apply
+        working-directory: infra/envs/prod
+        run: terraform apply -input=false -auto-approve -var "assume_role_arn=" -var "image_tag=${{ github.sha }}"
+
+      - name: Ensure the API key has a value
+        run: |
+          SECRET_ID="$(aws secretsmanager list-secrets --query "SecretList[?ends_with(Name, '/api-key')].Name | [0]" --output text)"
+          if aws secretsmanager get-secret-value --secret-id "$SECRET_ID" > /dev/null 2>&1; then
+            echo "API key already has a value."
+          else
+            echo "No secret value found. Setting a new random one."
+            aws secretsmanager put-secret-value --secret-id "$SECRET_ID" --secret-string "$(openssl rand -hex 24)" > /dev/null
+            CL=$(aws ecs list-clusters --query 'clusterArns[0]' --output text)
+            SV=$(aws ecs list-services --cluster "$CL" --query 'serviceArns[0]' --output text)
+            aws ecs update-service --cluster "$CL" --service "$SV" --force-new-deployment > /dev/null
+          fi
+
+      - name: Smoke test and version check
+        working-directory: infra/envs/prod
+        run: |
+          ALB="$(terraform output -raw alb_dns_name)"
+          curl --fail --silent --show-error --retry 30 --retry-delay 10 --retry-all-errors "http://$ALB/health"
+          echo
+          VERSION="$(curl --fail --silent --show-error "http://$ALB/version")"
+          echo "Prod reports: $VERSION"
+          echo "$VERSION" | grep --quiet "${{ github.sha }}"
