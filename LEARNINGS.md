@@ -43,3 +43,15 @@
 ## Terraform drift and renames
 - Changed a parameter in the console. plan showed the drift, and apply restored it.
 - Renaming a resource label plans destroy plus create. A moved block makes it a state-only change.
+
+## 2026-10-10: GitHub Actions deploys to AWS
+
+- `main` is which code. `dev` is where it gets deployed. The GitHub environment named `dev` is the approval gate in front of that place.
+- The deploy role is separate from the read-only role. Only a job approved through the `dev` environment can use it. Its trust rule ends in `:environment:dev`, not `:ref:refs/heads/main`.
+- The GitHub Terraform provider defaults `can_admins_bypass` to true, which would have let me skip my own approval. Read the plan for defaults, and pin the safe value.
+- `terraform import` brings something I created by hand under code.
+- A 503 from the load balancer means no healthy tasks. `aws ecs describe-services` events gave the real cause: the secret had no value.
+- Terraform creates the secret shell. The pipeline sets the value if it's missing. Destroying the stack deletes the value.
+- `curl` exit code 22 means an HTTP error status when using `--fail`.
+- A small terminal plus the AWS CLI pager looks frozen. Set `AWS_PAGER=""`.
+- A NAT gateway bills by the hour. Deploy, test, and destroy the same day with the destroy workflow.
