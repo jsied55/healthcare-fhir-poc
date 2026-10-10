@@ -47,8 +47,19 @@ jobs:
         working-directory: infra/envs/dev
         run: terraform apply -input=false -auto-approve -var image_tag=${{ github.sha }}
 
+      - name: Ensure the API key has a value
+        run: |
+          SECRET_ID=fhir-poc-dev/api-key
+          if ! aws secretsmanager get-secret-value --secret-id "$SECRET_ID" --query SecretString --output text > /dev/null 2>&1; then
+            echo "No secret value found. Setting a new random one."
+            aws secretsmanager put-secret-value --secret-id "$SECRET_ID" --secret-string "$(openssl rand -hex 24)" > /dev/null
+            CL=$(aws ecs list-clusters --query 'clusterArns[0]' --output text)
+            SV=$(aws ecs list-services --cluster "$CL" --query 'serviceArns[0]' --output text)
+            aws ecs update-service --cluster "$CL" --service "$SV" --force-new-deployment > /dev/null
+          fi
+
       - name: Smoke test
         working-directory: infra/envs/dev
         run: |
           URL="http://$(terraform output -raw alb_dns_name)/health"
-          curl --fail --silent --show-error --retry 20 --retry-delay 10 --retry-all-errors "$URL"
+          curl --fail --silent --show-error --retry 30 --retry-delay 10 --retry-all-errors "$URL"
