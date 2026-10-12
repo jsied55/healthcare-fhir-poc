@@ -63,9 +63,20 @@ module "vpc" {
 }
 
 module "iam" {
-  source = "git::https://github.com/jsied55/terraform-modules.git//iam?ref=v1.0.0"
+  source = "git::https://github.com/jsied55/terraform-modules.git//iam?ref=v1.2.0"
 
   name = local.name_prefix
+
+  additional_secret_arns = [module.db.master_secret_arn]
+}
+
+module "db" {
+  source = "git::https://github.com/jsied55/terraform-modules.git//db?ref=v1.2.0"
+
+  name                  = local.name_prefix
+  vpc_id                = module.vpc.vpc_id
+  subnet_ids            = module.vpc.private_subnet_ids
+  app_security_group_id = module.vpc.app_security_group_id
 }
 
 resource "aws_ecr_repository" "api" {
@@ -165,9 +176,18 @@ resource "aws_ecs_task_definition" "api" {
 
     portMappings = [{ containerPort = 8000, protocol = "tcp" }]
 
-    environment = [{ name = "APP_VERSION", value = var.image_tag }]
+    environment = [
+      { name = "APP_VERSION", value = var.image_tag },
+      { name = "DB_HOST", value = module.db.address },
+      { name = "DB_PORT", value = tostring(module.db.port) },
+      { name = "DB_NAME", value = module.db.db_name },
+    ]
 
-    secrets = [{ name = "API_KEY", valueFrom = module.iam.api_key_secret_arn }]
+    secrets = [
+      { name = "API_KEY", valueFrom = module.iam.api_key_secret_arn },
+      { name = "DB_USER", valueFrom = "${module.db.master_secret_arn}:username::" },
+      { name = "DB_PASSWORD", valueFrom = "${module.db.master_secret_arn}:password::" },
+    ]
 
     logConfiguration = {
       logDriver = "awslogs"
