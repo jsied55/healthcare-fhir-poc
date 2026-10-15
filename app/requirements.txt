@@ -14,3 +14,12 @@ typing_extensions==4.16.0
 uvicorn==0.54.0
 psycopg==3.3.6
 psycopg-binary==3.3.6
+boto3==1.43.112
+botocore==1.43.112
+fhir.resources==8.3.0
+fhir_core==1.1.11
+jmespath==1.1.0
+python-dateutil==2.9.0.post0
+s3transfer==0.19.2
+six==1.17.0
+urllib3==2.8.0
