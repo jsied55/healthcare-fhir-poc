@@ -225,3 +225,6 @@ __marimo__/
 *.tfstate.*
 *.tfvars
 crash.log
+# Terraform saved plans
+tfplan
+*.tfplan
